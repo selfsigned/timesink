@@ -4,6 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"time"
 
 	"github.com/selfsigned/timesink/src/ffprobe"
 )
@@ -35,5 +36,7 @@ func main() {
 			duration += length
 		}
 	}
-	println(toTimecode(duration))
+	fmt.Printf("Date after completion:\t%s\nTotal duration:\t\t%s\n",
+		time.Now().Add(time.Second*time.Duration(duration)).Format(time.ANSIC),
+		toTimecode(duration))
 }
