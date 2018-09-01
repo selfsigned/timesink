@@ -8,7 +8,15 @@ import (
 	"github.com/selfsigned/timesink/src/ffprobe"
 )
 
+func toTimecode(d float64) string {
+	hr := int(d) / 3600
+	min := (int(d) - hr*3600) / 60
+	sec := int(d) % 60
+	return fmt.Sprintf("%.2d:%.2d:%.2d", hr, min, sec)
+}
+
 func main() {
+	var duration float64
 	flag.Parse()
 
 	files := flag.Args()
@@ -19,10 +27,13 @@ func main() {
 	for _, v := range files {
 		out, err := ffprobe.GetFFprobeOut(v)
 		if err != nil {
-			println("Error: " + err.Error())
+			println(err.Error())
 			os.Exit(1)
 		}
-		duration, err := ffprobe.GetFileDuration(out)
-		fmt.Printf("%f\n", duration)
+		length, err := ffprobe.GetFileDuration(out)
+		if err == nil {
+			duration += length
+		}
 	}
+	println(toTimecode(duration))
 }
