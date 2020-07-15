@@ -4,9 +4,10 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"strconv"
 	"time"
 
-	"github.com/selfsigned/timesink/src/ffprobe"
+	"github.com/selfsigned/timesink/ffprobe"
 )
 
 func toTimecode(d float64) string {
@@ -17,7 +18,10 @@ func toTimecode(d float64) string {
 }
 
 func main() {
-	var duration float64
+	var totalDuration float64
+	// var recurse = flag.Bool("recursive", false, "Recursively traverse folders")
+
+	// flag.BoolVar(recurse, "R", false, "(shorthand)")
 	flag.Parse()
 
 	files := flag.Args()
@@ -25,18 +29,38 @@ func main() {
 		println("Usage: timesink [options] files")
 		os.Exit(1)
 	}
-	for _, v := range files {
-		out, err := ffprobe.GetFFprobeOut(v)
-		if err != nil {
-			println(err.Error())
-			os.Exit(1)
-		}
-		length, err := ffprobe.GetFileDuration(out)
+
+	// Stop early if ffprobe isn't in PATH
+	_, err := ffprobe.GetExecPath()
+	if err != nil {
+		println(err.Error())
+		os.Exit(1)
+	}
+
+	// WIP refactor this shit
+	for _, f := range files {
+		println(f)
+		fileInfo, err := ffprobe.Exec(f)
 		if err == nil {
-			duration += length
+			if fileInfo.Format.Duration != "" {
+				fileDuration, err := strconv.ParseFloat(fileInfo.Format.Duration, 32)
+				if err != nil {
+					fmt.Printf("%#v", fileInfo)
+					println(err.Error())
+					os.Exit(1)
+				}
+				if fileDuration > 1 {
+					totalDuration += fileDuration
+				}
+			}
 		}
 	}
-	fmt.Printf("Date after completion:\t%s\nTotal duration:\t\t%s\n",
-		time.Now().Add(time.Second*time.Duration(duration)).Format(time.ANSIC),
-		toTimecode(duration))
+	if totalDuration < 1 {
+		println("Error: No valid media file found")
+		os.Exit(1)
+	}
+
+	fmt.Printf("\nDate after completion:\t%s\nTotal duration:\t\t%s\n",
+		time.Now().Add(time.Second*time.Duration(totalDuration)).Format(time.ANSIC),
+		toTimecode(totalDuration))
 }
