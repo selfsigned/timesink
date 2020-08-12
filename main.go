@@ -5,6 +5,7 @@ import (
 	"flag"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -29,16 +30,21 @@ func toTimecode(d float64) string {
 	return fmt.Sprintf("%.2d:%.2d:%.2d", hr, min, sec)
 }
 
-func getFileLength(f string) (length float64) {
+func getFileLength(params parameters, f string) (length float64) {
 	fileInfo, err := ffprobe.Exec(f)
 	if err == nil {
 		if fileInfo.Format.Duration != "" {
 			length, err = strconv.ParseFloat(fileInfo.Format.Duration, 64)
-			if err != nil {
-				fmt.Printf("%#v", fileInfo)
-				println(err.Error())
+
+			if err == nil && length != 0 {
+				if !params.quiet {
+					println(f + " ⏳" + toTimecode(length))
+				}
+				return
 			}
-			return
+
+			fmt.Printf("%#v", fileInfo)
+			fmt.Fprintf(os.Stderr, err.Error())
 		}
 	}
 	return
@@ -64,21 +70,35 @@ func main() {
 	// Stop early if ffprobe isn't in PATH
 	_, err := ffprobe.GetExecPath()
 	if err != nil {
-		println(err.Error())
+		fmt.Fprintf(os.Stderr, err.Error())
 		os.Exit(1)
 	}
 
-	// WIP better error handling
 	for _, f := range files {
-		fileDuration := getFileLength(f)
-		totalDuration += fileDuration
-		if !params.quiet && fileDuration != 0 {
-			println(f + " ⏳" + toTimecode(fileDuration))
+		if err != nil {
+			fmt.Fprintf(os.Stderr, err.Error())
+			os.Exit(1)
 		}
+
+		err = filepath.Walk(f, func(path string, info os.FileInfo, err error) error {
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: can't access path %q: %v\n", path, err)
+				return err
+			}
+			if info.IsDir() {
+				if !params.recursive {
+					return filepath.SkipDir
+				}
+			} else {
+				totalDuration += getFileLength(params, path)
+			}
+			return nil
+		})
+
 	}
 
 	if totalDuration < 1 {
-		println("Error: No valid media file found")
+		fmt.Fprintf(os.Stderr, "Error: No valid media file found")
 		os.Exit(1)
 	}
 
